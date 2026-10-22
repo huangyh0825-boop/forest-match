@@ -1,0 +1,35 @@
+(function(root){
+'use strict';
+const SIZE=8,NAMES=['小狐狸','小青蛙','小熊','小蓝鸟','小兔子','小浣熊'];
+const LEVELS=Array.from({length:12},(_,i)=>({id:i+1,name:['初见森林','池塘来信','蜂蜜午后','薄荷冰湖','林间派对','星光草地','霜叶小径','莓果山谷','月光湖畔','萤火秘境','云上森林','森友庆典'][i],moves:24+Math.floor(i/3)*2,colors:i<6?5:6,goals:i===0?[{type:0,count:18},{type:1,count:18}]:[{type:i%6,count:18+Math.floor(i/2)*2},{type:(i+2)%5,count:18+Math.floor(i/3)*3}],ice:i<3?0:Math.min(32,8+(i-3)*4)}));
+const copy=x=>JSON.parse(JSON.stringify(x));
+class Game{
+ constructor(level=1,rng=Math.random){this.rng=rng;this.uid=0;this.level=copy(LEVELS[Math.min(12,Math.max(1,level))-1]);this.moves=this.level.moves;this.score=0;this.collected=Array(6).fill(0);this.board=[];this.ice=Array(64).fill(0);this.status='playing';this.boosters={hammer:2,shuffle:2};this.makeBoard();const candidates=Array.from({length:64},(_,i)=>i).sort((a,b)=>this.iceRank(a)-this.iceRank(b));candidates.slice(0,this.level.ice).forEach(i=>this.ice[i]=1);this.initialIce=this.level.ice;}
+ iceRank(i){const r=i>>3,c=i%8;return Math.abs(r-3.5)+Math.abs(c-3.5)+(r%2)*.2;}
+ tile(){return {id:++this.uid,type:Math.floor(this.rng()*this.level.colors),special:null};}
+ makeBoard(){for(let tries=0;tries<200;tries++){this.board=[];for(let i=0;i<64;i++){let t;do{t=this.tile();}while((i%8>1&&this.board[i-1].type===t.type&&this.board[i-2].type===t.type)||(i>=16&&this.board[i-8].type===t.type&&this.board[i-16].type===t.type));this.board.push(t);}if(this.legalMoves().length)return;}throw Error('无法生成棋盘');}
+ snapshot(){return copy({board:this.board,ice:this.ice,moves:this.moves,score:this.score,collected:this.collected,status:this.status,boosters:this.boosters});}
+ adjacent(a,b){return a>=0&&b>=0&&a<64&&b<64&&Math.abs((a>>3)-(b>>3))+Math.abs(a%8-b%8)===1;}
+ swap(a,b){[this.board[a],this.board[b]]=[this.board[b],this.board[a]];}
+ matches(){const groups=[];for(let axis=0;axis<2;axis++)for(let line=0;line<8;line++){let run=[];const flush=()=>{if(run.length>=3)groups.push({cells:run.slice(),axis:axis?'col':'row'});};for(let step=0;step<=8;step++){const p=axis?step*8+line:line*8+step,t=step<8?this.board[p]:null;if(t&&t.special!=='rainbow'&&(!run.length||this.board[run[0]].type===t.type))run.push(p);else{flush();run=t&&t.special!=='rainbow'?[p]:[];}}}return groups;}
+ isCombo(a,b){return this.board[a].special==='rainbow'||this.board[b].special==='rainbow'||(this.board[a].special&&this.board[b].special);}
+ legalMoves(){const out=[];for(let a=0;a<64;a++)for(const b of [a%8<7?a+1:-1,a<56?a+8:-1])if(b>=0&&this.board[a]&&this.board[b]){let valid=this.isCombo(a,b);if(!valid){this.swap(a,b);valid=this.matches().length>0;this.swap(a,b);}if(valid)out.push([a,b]);}return out;}
+ goalsDone(){return this.level.goals.every(g=>this.collected[g.type]>=g.count)&&!this.ice.some(Boolean);}
+ finish(){this.status=this.goalsDone()?'won':this.moves<=0?'lost':'playing';}
+ stars(){return Math.min(3,1+(this.moves>=5?1:0)+(this.moves>=11?1:0));}
+ effect(p,special){const r=p>>3,c=p%8;return Array.from({length:64},(_,i)=>i).filter(i=>special==='row'?(i>>3)===r:special==='col'?i%8===c:special==='bomb'?Math.abs((i>>3)-r)<=1&&Math.abs(i%8-c)<=1:false);}
+ creations(groups,preferred){const planned=new Map(),intersections=new Set();for(let i=0;i<groups.length;i++)for(let j=i+1;j<groups.length;j++)if(groups[i].axis!==groups[j].axis)groups[i].cells.filter(p=>groups[j].cells.includes(p)).forEach(p=>intersections.add(p));for(const g of groups){if(g.cells.length<4&&!g.cells.some(p=>intersections.has(p)))continue;const cross=g.cells.find(p=>intersections.has(p));const p=g.cells.length>=5?(preferred.find(p=>g.cells.includes(p))??g.cells[2]):cross??preferred.find(p=>g.cells.includes(p))??g.cells[1];const s=g.cells.length>=5?'rainbow':cross!==undefined?'bomb':g.axis;if(!planned.has(p)||s==='rainbow')planned.set(p,s);}return planned;}
+ clear(cells,planned,chain,frames){const affected=new Set(cells),queue=[...affected];for(let n=0;n<queue.length;n++){const p=queue[n],t=this.board[p];if(!t||!t.special||planned.has(p))continue;for(const i of this.effect(p,t.special))if(!affected.has(i)){affected.add(i);queue.push(i);}}
+ for(const p of affected){const t=this.board[p];if(!t)continue;this.ice[p]=0;if(!planned.has(p)){if(t.type>=0)this.collected[t.type]++;this.score+=60*chain;}}
+ frames.push({kind:'pop',cells:[...affected],chain,state:this.snapshot()});
+ for(const p of affected){if(planned.has(p)){this.board[p]={...this.board[p],special:planned.get(p)};}else this.board[p]=null;}
+ for(let c=0;c<8;c++){const left=[];for(let r=7;r>=0;r--)if(this.board[r*8+c])left.push(this.board[r*8+c]);for(let r=7;r>=0;r--)this.board[r*8+c]=left[7-r]||this.tile();}
+ frames.push({kind:'fall',chain,state:this.snapshot()});}
+ resolve(groups,preferred,frames,startCells=null){let chain=1;if(startCells){this.clear(startCells,new Map(),chain++,frames);groups=this.matches();}for(let limit=0;groups.length&&limit<200;limit++){this.clear(groups.flatMap(g=>g.cells),this.creations(groups,preferred),chain++,frames);preferred=[];groups=this.matches();}if(groups.length)throw Error('连锁未收敛');this.finish();if(this.status==='playing'&&!this.legalMoves().length){this.shuffleBoard();frames.push({kind:'shuffle',auto:true,state:this.snapshot()});}frames.push({kind:'end',state:this.snapshot()});}
+ attempt(a,b){if(this.status!=='playing'||!this.adjacent(a,b))return {valid:false,frames:[]};const combo=this.isCombo(a,b);this.swap(a,b);const frames=[{kind:'swap',a,b,state:this.snapshot()}],groups=this.matches();if(!combo&&!groups.length){this.swap(a,b);frames.push({kind:'invalid',state:this.snapshot()});return {valid:false,frames};}this.moves--;let cells=null;if(combo){const ta=this.board[a],tb=this.board[b];if(ta.special==='rainbow'||tb.special==='rainbow'){const both=ta.special==='rainbow'&&tb.special==='rainbow',target=ta.special==='rainbow'?tb.type:ta.type;cells=this.board.map((t,i)=>both||t.type===target||i===a||i===b?i:-1).filter(i=>i>=0);if(!both){const other=ta.special==='rainbow'?tb:ta;if(other.special)this.board.forEach(t=>{if(t.type===target)t.special=other.special;});}}else{cells=[a,b,...this.effect(a,ta.special),...this.effect(b,tb.special)];if(ta.special==='bomb'||tb.special==='bomb'){const r=a>>3,c=a%8;cells.push(...this.board.map((_,i)=>Math.abs((i>>3)-r)<=2&&Math.abs(i%8-c)<=2?i:-1).filter(i=>i>=0));}}}this.resolve(groups,[b,a],frames,cells);return {valid:true,frames};}
+ shuffleBoard(){for(let attempt=0;attempt<150;attempt++){for(let i=63;i>0;i--){const j=Math.floor(this.rng()*(i+1));this.swap(i,j);}if(!this.matches().length&&this.legalMoves().length)return;}this.makeBoard();}
+ useShuffle(){if(this.status!=='playing'||!this.boosters.shuffle)return [];this.boosters.shuffle--;this.shuffleBoard();return [{kind:'shuffle',state:this.snapshot()},{kind:'end',state:this.snapshot()}];}
+ hammer(p){if(this.status!=='playing'||!this.boosters.hammer||p<0||p>63)return [];this.boosters.hammer--;const frames=[];this.resolve([],[],frames,[p]);return frames;}
+}
+const api={Game,LEVELS,NAMES,SIZE};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ForestMatch=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
