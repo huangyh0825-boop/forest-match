@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 const SIZE=8,NAMES=['小狐狸','小青蛙','小熊','小蓝鸟','小兔子','小浣熊'];
-const LEVELS=Array.from({length:12},(_,i)=>({id:i+1,name:['初见森林','池塘来信','蜂蜜午后','薄荷冰湖','林间派对','星光草地','霜叶小径','莓果山谷','月光湖畔','萤火秘境','云上森林','森友庆典'][i],moves:24+Math.floor(i/3)*2,colors:i<6?5:6,goals:i===0?[{type:0,count:18},{type:1,count:18}]:[{type:i%6,count:18+Math.floor(i/2)*2},{type:(i+2)%5,count:18+Math.floor(i/3)*3}],ice:i<3?0:Math.min(32,8+(i-3)*4)}));
+const LEVELS=Array.from({length:12},(_,i)=>{const colors=i<8?5:6,count=[12,14,16,18,20,20,22,24,24,26,28,30][i];return {id:i+1,name:['初见森林','池塘来信','蜂蜜午后','薄荷湖畔','林间派对','星光冰湖','霜叶小径','莓果山谷','月光湖畔','萤火秘境','云上森林','森友庆典'][i],moves:[30,30,30,31,31,32,32,33,34,35,35,36][i],colors,goals:[{type:i%colors,count},{type:(i+2)%colors,count}],ice:[0,0,0,0,0,4,8,12,12,16,20,24][i]};});
 const copy=x=>JSON.parse(JSON.stringify(x));
 class Game{
  constructor(level=1,rng=Math.random){this.rng=rng;this.uid=0;this.level=copy(LEVELS[Math.min(12,Math.max(1,level))-1]);this.moves=this.level.moves;this.score=0;this.collected=Array(6).fill(0);this.board=[];this.ice=Array(64).fill(0);this.status='playing';this.boosters={hammer:2,shuffle:2};this.makeBoard();const candidates=Array.from({length:64},(_,i)=>i).sort((a,b)=>this.iceRank(a)-this.iceRank(b));candidates.slice(0,this.level.ice).forEach(i=>this.ice[i]=1);this.initialIce=this.level.ice;}
@@ -33,3 +33,4 @@ class Game{
 }
 const api={Game,LEVELS,NAMES,SIZE};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ForestMatch=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
