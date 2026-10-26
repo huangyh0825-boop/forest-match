@@ -1,0 +1,4 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {normalizeSave}=require('./dist/progress');
+test('corrupt saves cannot inject out-of-range levels, stars, or non-finite scores',()=>{for(const raw of [null,[],4,'x',{unlocked:999,stars:{1:99,2:-9,3:'3',500:3},best:{1:Infinity,2:-3},music:false},{unlocked:-4,stars:null,best:[]},{unlocked:'abc'}]){const s=normalizeSave(raw,36);assert.ok(s.unlocked>=1&&s.unlocked<=36);assert.ok(Object.values(s.stars).every(n=>Number.isInteger(n)&&n>=1&&n<=3));assert.ok(Object.values(s.best).every(n=>Number.isFinite(n)&&n>=0));}});
+test('migration is idempotent and preserves music off and earned stars',()=>{const old={unlocked:12,stars:{12:3},best:{12:68000},sound:true,music:false};const s=normalizeSave(old,36);assert.equal(s.unlocked,13);assert.deepEqual(s.stars,old.stars);assert.deepEqual(s.best,old.best);assert.equal(s.music,false);assert.deepEqual(normalizeSave(s,36),s);});

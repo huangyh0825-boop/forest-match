@@ -1,2 +1,1 @@
-{"name":"forest-friends-match","version":"1.1.0","private":true,"scripts":{"test":"node --test engine.test.cjs music.test.cjs app.test.cjs","start":"node server.cjs"}}
-
+{"name":"forest-friends-match","version":"1.2.0","private":true,"scripts":{"test":"node --test engine.test.cjs music.test.cjs app.test.cjs progress.test.cjs balance.test.cjs","start":"node server.cjs"}}
